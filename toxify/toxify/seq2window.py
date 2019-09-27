@@ -90,12 +90,18 @@ def seq15mer(protein_panda, window, maxLen):
                         [headerStr, "kmer_" + str(i), seq[i:i + window]]
                     )
     data = np.array(data)
+
     return data
 
 
+# ======================
+# Input
+# Positive samples file
+# Negative samples file
+# ======================
 def seqs2train(
-        pos,
-        neg,
+        pos_file,
+        neg_file,
         window,
         maxLen
 ):
@@ -106,49 +112,70 @@ def seqs2train(
     # neg = ['./../sequence_data/training_data/pre.NOT.venom.fasta']
     # List of CSV files
 
-    print(' > seqs2train ', pos, neg)
+    print(' > seqs2train ', pos_file, neg_file)
 
-    for pos_file in pos:
 
-        pos_pd = source2pd(
-            pos_file,
-            window,
-            maxLen
-        )
-        if window:
-            pos_mat.append(seq15mer(
-                pos_pd,
-                window,
-                maxLen)
-            )
-        else:
-            print("POS PD:")
-            pos_mat.append(pos_pd)
+    pos_df = source2pd(pos_file, window, maxLen)
+    neg_df = source2pd(neg_file, window, maxLen)
 
-    for neg_file in neg:
+    # Split into train and test set
+    # 80:20
 
-        neg_pd = source2pd(neg_file, window, maxLen)
-        if window:
-            print("window_size: ", window)
-            neg_mat.append(seq15mer(neg_pd, window, maxLen))
-        else:
-            print("NEG PD:")
-            neg_mat.append(neg_pd)
+    from sklearn.model_selection import train_test_split
+    pos_train, pos_test = train_test_split (
+        pos_df,
+        test_size = 0.2,
+        random_state = 42
+    )
 
-    pos_np = np.vstack(pos_mat)
-    neg_np = np.vstack(neg_mat)
-    pos_ones = np.ones((pos_np.shape[0], 1))
-    pos_labeled = np.append(pos_np, pos_ones, axis=1)
-    neg_zeros = np.zeros((neg_np.shape[0], 1))
-    neg_labeled = np.append(neg_np, neg_zeros, axis=1)
+    neg_train, neg_test = train_test_split(
+        neg_df,
+        test_size=0.2,
+        random_state=42
+    )
 
-    mat_np = np.vstack([pos_labeled, neg_labeled])
-    print(' >>> Total data shape :', mat_np.shape)
+    ...
+    # if windowing is done
+    if window:
 
-    indices = np.random.permutation(mat_np.shape[0])
-    training_idx, test_idx = indices[:int(mat_np.shape[0] * 0.8)], indices[int(mat_np.shape[0] * 0.8):]
-    training_np, test_np = mat_np[training_idx, :], mat_np[test_idx, :]
-    return (training_np, test_np)
+        pos_train_data = seq15mer( pos_train, window,maxLen )
+        pos_test_data = seq15mer( pos_test, window,maxLen )
+        neg_train_data = seq15mer( neg_train, window,maxLen )
+        neg_test_data = seq15mer( neg_test, window,maxLen )
+
+    else:
+        pos_train_data = pos_train.values
+        pos_test_data = pos_test.values
+        neg_test_data = neg_test.values
+        neg_train_data = neg_train.values
+
+    pos_np_train = pos_train_data
+    pos_np_test  = pos_test_data
+    neg_np_train = neg_train_data
+    neg_np_test  = neg_test_data
+
+
+    # --- Add in labels
+
+    pos_ones_train  = np.ones((pos_np_train.shape[0], 1))
+    pos_train_labeled = np.append(pos_np_train, pos_ones_train, axis=1)
+
+    pos_ones_test = np.ones((pos_np_test.shape[0], 1))
+    pos_test_labeled = np.append(pos_np_test, pos_ones_test, axis=1)
+
+    neg_zeros_train = np.zeros((neg_np_train.shape[0], 1))
+    neg_train_labeled = np.append(neg_np_train, neg_zeros_train, axis=1)
+
+    neg_zeros_test = np.zeros((neg_np_test.shape[0], 1))
+    neg_test_labeled = np.append(neg_np_test, neg_zeros_test, axis=1)
+
+    data_train = np.vstack([pos_train_labeled, neg_train_labeled])
+    data_test = np.vstack([pos_test_labeled, neg_test_labeled])
+
+
+    print(' >>> Train data shape :', data_train.shape)
+    print(' >>> Test data shape :', data_test.shape)
+    return (data_train, data_test)
 
 
 def seq2atchley(s, window, maxLen):
