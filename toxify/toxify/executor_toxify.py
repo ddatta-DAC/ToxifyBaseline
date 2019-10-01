@@ -198,6 +198,7 @@ class ToxifyModel:
         self.sess.close()
         return
 
+
 def train_and_test_model(
         train_X,
         train_Y,
@@ -333,6 +334,8 @@ def get_data(
 Since the output is logit,
 Take mean of all the 'k-mers' for each class 
 '''
+
+
 def evaluate(
         df_test_seqs,
         arr_results
@@ -367,6 +370,7 @@ def evaluate(
             return 1
         else:
             return 0
+
     res_df['predicted'] = res_df.apply(
         set_res,
         axis=1
@@ -382,7 +386,7 @@ def evaluate(
 
     P = precision_score(true_labels, pred_labels)
     R = recall_score(true_labels, pred_labels)
-    F1 = f1_score (true_labels, pred_labels)
+    F1 = f1_score(true_labels, pred_labels)
 
     print(' Precison :: ', P)
     print(' Recall :: ', R)
@@ -392,15 +396,14 @@ def evaluate(
 
 # --------------------------------------- #
 
-def main(maxLen = 500, window = 15):
-
+def main(maxLen=500, window=15, N_units=150):
     print(' >>> starting main ')
     # here we are given a list of positive fasta files and a list of negative fasta files
 
     # Paper uses 500
     maxLen = maxLen
     window = window
-    N_units = 270
+    N_units = N_units
     # Paper uses 50 epochs
     epochs = 50
     lr = 0.01
@@ -410,7 +413,7 @@ def main(maxLen = 500, window = 15):
     model_signature = 'toxify_' + '_'.join(str_hyperparams)
     model_dir = os.path.join('./models', 'baseline')
     result_dir = os.path.join(
-        './../baseline_results',model_signature
+        './../baseline_results', model_signature
     )
     result_file = 'results.csv'
 
@@ -470,9 +473,9 @@ def main(maxLen = 500, window = 15):
         arr_F1.append(F1)
         print('------')
 
-    result_file_path = os.path.join(result_dir,result_file)
+    result_file_path = os.path.join(result_dir, result_file)
     if os.path.exists(result_file_path):
-        results_df = pd.read_csv(result_file_path,index_col=None)
+        results_df = pd.read_csv(result_file_path, index_col=None)
     else:
         results_df = pd.DataFrame(
             columns=[
@@ -488,18 +491,19 @@ def main(maxLen = 500, window = 15):
         'Precision_mean': np.mean(arr_P),
         'Precision_stddev': np.stddev(),
         'Recall_mean': np.mean(arr_R),
-        'Recall_stddev' : np.stddev(arr_R),
-        'F1_mean':np.mean(arr_F1),
-        'F1_stddev':np.stddev(arr_F1)
+        'Recall_stddev': np.stddev(arr_R),
+        'F1_mean': np.mean(arr_F1),
+        'F1_stddev': np.stddev(arr_F1)
     }
 
     results_df = results_df.append(
         _dict,
         ignore_index=True
     )
-    results_df.to_csv(result_file_path,index=False)
+    results_df.to_csv(result_file_path, index=False)
     return
 
-main( maxLen=150, window=15 )
-main( maxLen=500, window=0)
-main( maxLen=500, window=100)
+
+main(maxLen=150, window=15, N_units=150)
+main(maxLen=500, window=0, N_units=270)
+main(maxLen=500, window=100, N_units=270)
