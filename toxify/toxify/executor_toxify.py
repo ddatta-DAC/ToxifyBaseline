@@ -1,32 +1,51 @@
 import tensorflow as tf
 import numpy as np
 import pandas as pd
-from random import shuffle
-import random
 import os
+import time
+from sklearn.model_selection import train_test_split
 import sys
 from itertools import groupby
 import argparse
-import time
+from random import shuffle
+import random
+from sklearn.metrics import precision_score
 
-import fifteenmer
-import protfactor as pf
-import seq2window as sw
+# ------------------------------------------------------------ #
+try:
+    from . import fifteenmer
+except:
+    import fifteenmer
+try:
+    from . import protfactor
+except:
+    import protfactor
+try:
+    from . import seq2window as sw
+except:
+    import seq2window as sw
+
+
+# ------------------------------------------------------------ #
 
 class ToxifyModel:
     def __init__(self):
+        print('Defining model')
         return
+
     def set_hyperparams(
             self,
             input_dimension,
             output_dimension,
             N_units,
             seq_len,
+            model_dir,
             epochs=50,
             batch_size=512,
-            lr = 0.01
+            lr=0.01
     ):
-        self. input_dimension=  input_dimension
+        self.model_dir = model_dir
+        self.input_dimension = input_dimension
         self.output_dimension = output_dimension
         self.N_units = N_units
         self.seq_len = seq_len
@@ -36,6 +55,7 @@ class ToxifyModel:
         return
 
     def build(self):
+
         self.inputs = tf.placeholder(tf.float32, [None, None, self.input_dimension])
         self.target = tf.placeholder(tf.float32, [None, self.output_dimension])
 
@@ -76,26 +96,38 @@ class ToxifyModel:
         # Optimizer
         self.train_step = tf.train.AdamOptimizer(self.lr).minimize(self.loss)
 
+        tf.summary.scalar("loss", self.loss)
+        tf.summary.scalar("accuracy", self.accuracy)
+
+        self.merged_summary_op = tf.summary.merge_all()
         return
 
     def train(
             self,
             train_X,
             train_Y
-        ):
+    ):
+
         self.sess = tf.InteractiveSession()
         self.init = tf.global_variables_initializer()
         self.sess.run(self.init)
+
+        self.summary_writer = tf.summary.FileWriter(
+            self.model_dir,
+            graph=tf.get_default_graph()
+        )
         self.saver = tf.train.Saver()
+
         batch_size = self.batch_size
         num_batches = train_X.shape[0] // batch_size + 1
 
         print('Number of batches ', num_batches)
-        for i in range(self.epochs):
+        for epoch in range(self.epochs):
             print('<----')
             t1 = time.time()
-            print(':: Epoch ::', i + 1)
+            print(':: Epoch ::', epoch + 1)
             for _b in range(num_batches):
+
                 if _b == num_batches - 1:
                     _train_x = train_X[_b * batch_size:]
                     _train_y = train_Y[_b * batch_size:]
@@ -103,166 +135,44 @@ class ToxifyModel:
                     _train_x = train_X[_b * batch_size: (_b + 1) * batch_size]
                     _train_y = train_Y[_b * batch_size: (_b + 1) * batch_size]
 
-            _, c, summary = self.sess.run(
-                [self.train_step, self.loss, self.merged_summary_op],
-                feed_dict={
-                    self.inputs: _train_x,
-                    self.target: _train_y
-                }
-            )
-            t2 = time.time()
-            print(' Time Elapsed ::', (t2-t1)/60 , ' minutes')
-            print('---->')
-
-        return
-
-    def predict(self):
-
-        return
-
-def train_and_test_model(
-        train_X,
-        train_Y,
-        test_X,
-        test_Y,
-        input_dimension,
-        output_dimension,
-        N_units,
-        model_signature
-):
-    m = train_Y.shape[1]  # Output dimension
-    d = train_X.shape[1:]  # Input dimension
-    seq_len = train_X.shape[1]  # Sequence length
-
-    print('Input dimension ::', d)
-    print('Output dimension ::', m)
-
-    # Placeholders
-    inputs = tf.placeholder(tf.float32, [None, None, input_dimension])
-    target = tf.placeholder(tf.float32, [None, output_dimension])
-
-
-    # Network architecture
-
-    rnn_units = tf.nn.rnn_cell.GRUCell(N_units)
-    rnn_output, _ = tf.nn.dynamic_rnn(rnn_units, inputs, dtype=tf.float32)
-
-    # Ignore all but the last timesteps
-    last = tf.gather(
-        rnn_output,
-        seq_len - 1,
-        axis=1
-    )
-
-    # Fully connected layer
-    logits = tf.layers.dense(last, m, activation=None)
-    # Output mapped to probabilities by softmax
-    prediction = tf.nn.softmax(logits)
-    # Error function
-    loss = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits_v2(
-        labels=target, logits=logits)
-    )
-    # 0-1 loss; compute most likely class and compare with target
-    accuracy = tf.equal(tf.argmax(logits, 1), tf.argmax(target, 1))
-    # Average 0-1 loss
-    accuracy = tf.reduce_mean(tf.cast(accuracy, tf.float32))
-    # Optimizer
-    train_step = tf.train.AdamOptimizer(lr).minimize(loss)
-    tf.summary.scalar("loss", loss)
-    tf.summary.scalar("accuracy", accuracy)
-
-    merged_summary_op = tf.summary.merge_all()
-    model_dir = os.path.join("models", model_signature)
-    if not os.path.exists(model_dir):
-        os.mkdir(model_dir)
-
-    with tf.Session() as sess:
-        init = tf.global_variables_initializer()
-        sess.run(init)
-
-        summary_writer = tf.summary.FileWriter(
-            model_dir,
-            graph=tf.get_default_graph()
-        )
-        saver = tf.train.Saver()
-
-        ckpt = tf.train.get_checkpoint_state(model_dir)
-        if ckpt and ckpt.model_checkpoint_path:
-            saver.restore(sess, ckpt.model_checkpoint_path)
-            print(ckpt.model_checkpoint_path)
-            i_stopped = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
-        else:
-            print('No checkpoint file found!')
-            i_stopped = 0
-
-        '''
-        Train model 
-        '''
-        batch_size  = 512
-        num_batches = n//batch_size+1
-        print('Number of batches ',num_batches)
-        for i in range(epochs):
-            print(':: Epoch ::', i + 1)
-            for _b in range(num_batches):
-                if _b == num_batches-1:
-                    _train_x = train_X[_b*batch_size:]
-                    _train_y = train_Y[_b*batch_size:]
-                else:
-                    _train_x = train_X[_b*batch_size : (_b+1)*batch_size]
-                    _train_y = train_Y[_b * batch_size: (_b+1)*batch_size]
-
-            _, c, summary = sess.run(
-                [train_step, loss, merged_summary_op],
-                feed_dict={
-                    inputs: _train_x,
-                    target: _train_y
-                }
-            )
-            summary_writer.add_summary(summary, epochs)
-            if (i + 1) % 10 == 0:
-                tmp_loss, tmp_acc = sess.run(
-                    [loss, accuracy],
-                    feed_dict=
-                    {inputs: train_X, target: train_Y}
-                )
-                tmp_acc_test = sess.run(
-                    accuracy,
+                _, loss, summary = self.sess.run(
+                    [self.train_step, self.loss, self.merged_summary_op],
                     feed_dict={
-                        inputs: test_X,
-                        target: test_Y
+                        self.inputs: _train_x,
+                        self.target: _train_y
                     }
                 )
-                print(
-                    i + 1,
-                    ' Loss:', tmp_loss,
-                    ' Accuracy, train:', tmp_acc,
-                    ' Accuracy, test:', tmp_acc_test
-                )
+                if _b % 1000 == 0:
+                    print('batch >', _b)
+                    print(' Loss: ', loss)
 
-                checkpoint_path = os.path.join(model_dir, 'model.ckpt')
-                saver.save(sess, checkpoint_path, global_step=i)
+            self.summary_writer.add_summary(summary, epoch)
+            t2 = time.time()
+            print(' Time Elapsed ::', (t2 - t1) / 60, ' minutes')
+            print('---->')
+        save_dir = self.model_dir + "/saved_model/" + str(time.time()).split('.')[0]
 
-        save_dir = model_dir + "/saved_model/" + str(time.time()).split('.')[0]
         tf.saved_model.simple_save(
-            sess,
-            save_dir ,
+            self.sess,
+            save_dir,
             inputs={
-                "inputs":inputs,
-                "target":target},
-            outputs={"predictions":prediction}
+                "inputs": self.inputs,
+                "target": self.target},
+            outputs={"predictions": self.prediction}
         )
-        sess.graph.finalize()
-
+        self.sess.graph.finalize()
         print('end of training model')
-        '''
-        Test the model 
-        '''
+        return
 
-        print(' --- start test phase ----')
-        results =  []
-        batch_size = 512
+    def predict(
+            self,
+            test_X
+    ):
+        print(' ---> Start test phase <----')
+        results = []
+        batch_size = self.batch_size
         num_batches = test_X.shape[0] // batch_size
+
         print('Number of batches ', num_batches)
         print('Shape of text_X ', test_X.shape)
         for _b in range(num_batches + 1):
@@ -270,191 +180,324 @@ def train_and_test_model(
                 _test_x = test_X[_b * batch_size:]
             else:
                 _test_x = test_X[_b * batch_size: (_b + 1) * batch_size]
-
-            output = sess.run(
-                [prediction],
-                feed_dict = {
-                    inputs: _test_x
+            # ------
+            # Do not close the session !!
+            # ------
+            output = self.sess.run(
+                [self.prediction],
+                feed_dict={
+                    self.inputs: _test_x
                 }
             )
             results.extend(output)
         results = np.vstack(results)
+        return results
+
+    def model_close(self):
+        tf.reset_default_graph()
+        self.sess.close()
+        return
+
+def train_and_test_model(
+        train_X,
+        train_Y,
+        test_X,
+        test_Y,
+        N_units,
+        model_dir
+):
+    output_dimension = train_Y.shape[1]  # Output dimension
+    input_dimension = train_X.shape[2]  # Input dimension
+    seq_len = train_X.shape[1]  # Sequence length
+
+    print('Input dimension ::', input_dimension)
+    print('Output dimension ::', output_dimension)
+
+    model_obj = ToxifyModel()
+    model_obj.set_hyperparams(
+        input_dimension=input_dimension,
+        output_dimension=output_dimension,
+        N_units=N_units,
+        seq_len=seq_len,
+        model_dir=model_dir,
+        epochs=1
+    )
+    model_obj.build()
+    model_obj.train(
+        train_X,
+        train_Y
+    )
+    results = model_obj.predict(test_X)
+    model_obj.model_close()
+    return results
 
 
 def get_data(
+        pos_samples_fasta_file,
+        neg_samples_fasta_file,
         window_size,
         max_seq_len,
-        model_signature
+        cv_folds=5
 ):
-    list_pos_samples_fasta = './../sequence_data/training_data/pre.venom.csv'
-    list_neg_samples_fasta = './../sequence_data/training_data/pre.NOT.venom.csv'
-
-    (train_seqs, test_seqs) = sw.seqs2train(
-        list_pos_samples_fasta,
-        list_neg_samples_fasta,
+    (train_seqs_list, test_seqs_list) = sw.seqs2train(
+        pos_samples_fasta_file,
+        neg_samples_fasta_file,
         window_size,
-        max_seq_len
+        max_seq_len,
+        cv_folds
     )
 
-    # Write training data
-    training_data_dir = './../model_training_data'
+    # training_data_dir = './../model_training_data'
+    # if not os.path.exists(training_data_dir):
+    #     os.mkdir(training_data_dir)
+    #
+    # training_data_loc = os.path.join(training_data_dir, model_signature)
+    # if not os.path.exists(training_data_loc):
+    #     os.makedirs(training_data_loc)
 
-    if not os.path.exists(training_data_dir):
-        os.mkdir(training_data_dir)
+    list_train_X = []
+    list_train_Y = []
+    list_test_X = []
+    list_test_Y = []
+    list_test_seqs_pd = []
 
-    training_data_loc = os.path.join(training_data_dir, model_signature)
-    if not os.path.exists(training_data_loc):
-        os.makedirs(training_data_loc)
+    for train_seqs, test_seqs in zip(train_seqs_list, test_seqs_list):
 
-    print(" Writing to: " + training_data_loc + "/testSeqs.csv")
-    test_seqs_pd = pd.DataFrame(test_seqs)
+        test_seqs_pd = pd.DataFrame(test_seqs)
 
-    if window_size:
-        test_seqs_pd.columns = ['header', 'kmer', 'sequence', 'label']
-    else:
-        test_seqs_pd.columns = ['header', 'sequence', 'label']
-
-    test_seqs_pd.to_csv(
-        os.path.join(
-            training_data_loc,
-            'testSeqs.csv'
-        ),
-        index=False
-    )
-
-    test_mat = []
-    test_label_mat = []
-
-    '''
-    Label format
-        Toxin, non-Toxin
-    '''
-    for row in test_seqs:
-        seq = row[-2]
-        label = float(row[-1])
-
-        if label:
-            test_label_mat.append([1, 0])
+        if window_size:
+            test_seqs_pd.columns = ['header', 'kmer', 'sequence', 'label']
         else:
-            test_label_mat.append([0, 1])
-        test_mat.append(
-            sw.seq2atchley(
+            test_seqs_pd.columns = ['header', 'sequence', 'label']
+
+        test_mat = []
+        test_label_mat = []
+
+        '''
+        Label format
+            Toxin, non-Toxin
+        '''
+        for row in test_seqs:
+            seq = row[-2]
+            label = float(row[-1])
+
+            if label:
+                test_label_mat.append([1, 0])
+            else:
+                test_label_mat.append([0, 1])
+            test_mat.append(
+                sw.seq2atchley(
+                    seq,
+                    window_size,
+                    max_seq_len
+                )
+            )
+        test_label_np = np.array(test_label_mat)
+        test_np = np.array(test_mat)
+
+        train_mat = []
+        train_label_mat = []
+        for row in train_seqs:
+            seq = row[-2]
+            train_mat.append(sw.seq2atchley(
                 seq,
                 window_size,
                 max_seq_len
             )
-        )
-    test_label_np = np.array(test_label_mat)
-    test_np = np.array(test_mat)
+            )
+            label = float(row[-1])
 
-    train_mat = []
-    train_label_mat = []
-    for row in train_seqs:
-        seq = row[-2]
-        train_mat.append(sw.seq2atchley(
-            seq,
-            window_size,
-            max_seq_len
-        )
-        )
-        label = float(row[-1])
+            if label:
+                train_label_mat.append([1, 0])
+            else:
+                train_label_mat.append([0, 1])
 
-        if label:
-            train_label_mat.append([1, 0])
-        else:
-            train_label_mat.append([0, 1])
+        train_label_np = np.array(train_label_mat)
+        train_np = np.array(train_mat)
+        train_X = train_np
+        train_Y = train_label_np
+        test_X = test_np
+        test_Y = test_label_np
+        list_train_X.append(train_X)
+        list_train_Y.append(train_Y)
+        list_test_X.append(test_X)
+        list_test_Y.append(test_Y)
+        list_test_seqs_pd.append(test_seqs_pd)
+        print("train_X.shape:", train_X.shape)
+        print("train_Y.shape:", train_Y.shape)
 
-    train_label_np = np.array(train_label_mat)
-    train_np = np.array(train_mat)
-
-    # Save data
-    np.save(training_data_loc + "testData.npy", test_np)
-    np.save(training_data_loc + "testLabels.npy", test_label_np)
-    np.save(training_data_loc + "trainData.npy", train_np)
-    np.save(training_data_loc + "trainLabels.npy", train_label_np)
-
-    # Load data
-    train_X = np.load(training_data_loc + "trainData.npy")
-    train_Y = np.load(training_data_loc + "trainLabels.npy")
-    test_X = np.load(training_data_loc + "testData.npy")
-    test_Y = np.load(training_data_loc + "testLabels.npy")
-
-    print("train_X.shape:", train_X.shape)
-    print("train_Y.shape:", train_Y.shape)
-
-    return train_X, train_Y, test_X, test_Y, test_seqs_pd
-
-# --------------------
-TRAIN_MODE = True
-# --------------------
-def main():
-
-    global TRAIN_MODE
-
-    print(' >>> starting main ')
-    # here we are given a list of positive fasta files and a list of negative fasta files
-
-    maxLen = 150
-    window = 15
-    units = 270
-    epochs = 1
-    lr = 0.01
-
-    hyperparams = [ maxLen, window, units, epochs ]
-    str_hyperparams= [ str(_) for _ in hyperparams ]
-    model_signature = 'toxify_'+ '_'.join(str_hyperparams)
-    max_seq_len = maxLen
-    window_size = window
-    N_units = units
-    lr = lr
-    epochs = epochs
-    train_X, train_Y, test_X, test_Y, test_seqs_pd = get_data(
-        window_size,
-        max_seq_len,
-        model_signature
-    )
-    # Here we are given a list of positive fasta files and a list of negative fasta files
-
-    # Parameters
-    n = train_X.shape[0]  # Number of training sequences
-    n_test = test_X.shape[0]  # Number of test sequences
+    return list_train_X, list_train_Y, list_test_X, list_test_Y, list_test_seqs_pd
 
 
-    '''
-    ----------------- TF Model ---------------------
-    '''
-    results = train_and_test_model()
-    process_results(
-        test_seqs_pd,
-        results
-    )
-    return
-
-def process_results(
+'''
+Since the output is logit,
+Take mean of all the 'k-mers' for each class 
+'''
+def evaluate(
         df_test_seqs,
         arr_results
-    ):
-    df_test_seqs['predicted'] = 0.0
-    new_df = pd.DataFrame(df_test_seqs,copy=True)
-    for i,row in df_test_seqs.iterrows():
+):
+    TP = 0
+    TN = 0
+    FP = 0
+    FN = 0
+    F1 = 0
+    MCC = 0
 
-        if arr_results[i][0] >= arr_results[i][1] :
-            new_df.at[i,'predicted'] = 1.0
+    df_test_seqs['predicted'] = 0.0
+    # Create a copy
+    new_df = pd.DataFrame(df_test_seqs, copy=True)
+    new_df['predicted_1'] = arr_results[:, 0]
+    new_df['predicted_0'] = arr_results[:, 1]
+
+    # ----- #
 
     # Do a groupby with max
     res_df = new_df.groupby(
         by=['header']
     ).agg(
-        {'label':'max',
-         'predicted':'max'}).reset_index()
+        {'label': 'max',
+         'predicted_0': 'mean',
+         'predicted_1': 'mean'}
+    ).reset_index()
 
-    print(res_df.columns)
+    # Set predicted label
+    def set_res(row):
+        if row['predicted_1'] >= row['predicted_0']:
+            return 1
+        else:
+            return 0
+    res_df['predicted'] = res_df.apply(
+        set_res,
+        axis=1
+    )
 
     res_df['label'] = res_df['label'].astype(float)
     res_df['predicted'] = res_df['predicted'].astype(float)
 
-    from sklearn.metrics import precision_score
-    P = precision_score(res_df['label'], res_df['predicted'])
-    print('Precison :: ', P)
+    true_labels = list(res_df['label'])
+    pred_labels = list(res_df['predicted'])
+    from sklearn.metrics import recall_score
+    from sklearn.metrics import f1_score
 
-main()
+    P = precision_score(true_labels, pred_labels)
+    R = recall_score(true_labels, pred_labels)
+    F1 = f1_score (true_labels, pred_labels)
+
+    print(' Precison :: ', P)
+    print(' Recall :: ', R)
+    print(' F1 :: ', F1)
+    return P, R, F1
+
+
+# --------------------------------------- #
+
+def main(maxLen = 500, window = 15):
+
+    print(' >>> starting main ')
+    # here we are given a list of positive fasta files and a list of negative fasta files
+
+    # Paper uses 500
+    maxLen = maxLen
+    window = window
+    N_units = 270
+    # Paper uses 50 epochs
+    epochs = 1
+    lr = 0.01
+
+    hyperparams = [maxLen, window, N_units, epochs]
+    str_hyperparams = [str(_) for _ in hyperparams]
+    model_signature = 'toxify_' + '_'.join(str_hyperparams)
+    model_dir = os.path.join('./models', 'baseline')
+    result_dir = os.path.join(
+        './../baseline_results',model_signature
+    )
+    result_file = 'results.csv'
+
+    if not os.path.exists('./../baseline_results'):
+        os.mkdir('./../baseline_results')
+    if not os.path.exists(result_dir):
+        os.mkdir(result_dir)
+
+    if not os.path.exists(model_dir): os.mkdir(model_dir)
+
+    max_seq_len = maxLen
+    window_size = window
+
+    pos_samples_fasta_file = './../sequence_data/training_data/pre.venom.csv'
+    neg_samples_fasta_file = './../sequence_data/training_data/pre.NOT.venom.csv'
+
+    cv_folds = 3
+    list_train_X, list_train_Y, list_test_X, list_test_Y, list_test_seqs_pd = get_data(
+        pos_samples_fasta_file,
+        neg_samples_fasta_file,
+        window_size,
+        max_seq_len,
+        cv_folds=cv_folds
+    )
+
+    # Here we are given a list of positive fasta files and a list of negative fasta files
+
+    '''
+    ----------------- TF Model ---------------------
+    '''
+
+    arr_P = []
+    arr_R = []
+    arr_F1 = []
+
+    for _cv in range(cv_folds):
+        print(' Cross Validation Fold ::', _cv)
+        train_X = list_train_X[_cv]
+        train_Y = list_train_Y[_cv]
+        test_X = list_test_X[_cv]
+        test_Y = list_test_Y[_cv]
+        test_seqs_pd = list_test_seqs_pd[_cv]
+        results = train_and_test_model(
+            train_X,
+            train_Y,
+            test_X,
+            test_Y,
+            N_units,
+            model_dir
+        )
+        P, R, F1 = evaluate(
+            test_seqs_pd,
+            results
+        )
+        arr_P.append(P)
+        arr_R.append(R)
+        arr_F1.append(F1)
+        print('------')
+
+    result_file_path = os.path.join(result_dir,result_file)
+    if os.path.exist(result_file_path):
+        results_df = pd.read_csv(result_file_path,index_col=None)
+    else:
+        results_df = pd.DataFrame(
+            columns=[
+                'Precision_mean',
+                'Precision_stddev',
+                'Recall_mean',
+                'Recall_stddev',
+                'F1_mean',
+                'F1_stddev'
+            ])
+
+    _dict = {
+        'Precision_mean': np.mean(arr_P),
+        'Precision_stddev': np.stddev(),
+        'Recall_mean': np.mean(arr_R),
+        'Recall_stddev' : np.stddev(arr_R),
+        'F1_mean':np.mean(arr_F1),
+        'F1_stddev':np.stddev(arr_F1)
+    }
+
+    results_df = results_df.append(
+        _dict,
+        ignore_index=True
+    )
+    results_df.to_csv(result_file_path,index=False)
+    return
+
+main( maxLen=150, window=15 )

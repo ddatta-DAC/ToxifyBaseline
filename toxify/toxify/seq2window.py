@@ -2,6 +2,7 @@ import sys
 from itertools import groupby
 import pandas as pd
 import numpy as np
+from sklearn.model_selection import train_test_split
 
 window_size = 15
 max_seq_len = 100
@@ -55,9 +56,8 @@ def source2pd(
         window,
         maxLen
 ):
-
-    print("IN:", dataFile)
-    df = pd.read_csv(dataFile)
+    print(" source2pd ::", dataFile)
+    df = pd.read_csv(dataFile,index_col=None)
 
     def validate_seq(row, maxLen, window):
         z = len(row['sequences'])
@@ -68,6 +68,12 @@ def source2pd(
 
     df['sequences'] = df.apply(validate_seq, axis=1, args=(maxLen, window,))
     df = df.dropna(subset=['sequences'])
+    df = df.reset_index()
+    try:
+        del df['sequence']
+    except:
+        pass
+
     return df
 
 
@@ -103,79 +109,83 @@ def seqs2train(
         pos_file,
         neg_file,
         window,
-        maxLen
+        maxLen,
+        cv_folds = 5
 ):
-    pos_mat = []
-    neg_mat = []
-
-    # pos = ['./../sequence_data/training_data/pre.venom.fasta']
-    # neg = ['./../sequence_data/training_data/pre.NOT.venom.fasta']
-    # List of CSV files
-
     print(' > seqs2train ', pos_file, neg_file)
-
-
     pos_df = source2pd(pos_file, window, maxLen)
     neg_df = source2pd(neg_file, window, maxLen)
 
-    # Split into train and test set
-    # 80:20
+    len_pos_df = len(pos_df)
+    len_neg_df = len(neg_df)
 
-    from sklearn.model_selection import train_test_split
-    pos_train, pos_test = train_test_split (
-        pos_df,
-        test_size = 0.2,
-        random_state = 42
-    )
+    hold_out_len_pos = len_pos_df // cv_folds
+    hold_out_len_neg = len_neg_df // cv_folds
 
-    neg_train, neg_test = train_test_split(
-        neg_df,
-        test_size=0.2,
-        random_state=42
-    )
+    data_train_list = []
+    data_test_list = []
 
-    ...
-    # if windowing is done
-    if window:
+    for _cv in range(cv_folds):
 
-        pos_train_data = seq15mer( pos_train, window,maxLen )
-        pos_test_data = seq15mer( pos_test, window,maxLen )
-        neg_train_data = seq15mer( neg_train, window,maxLen )
-        neg_test_data = seq15mer( neg_test, window,maxLen )
+        # For cross validation do not use train-test split
+        mask = np.zeros([len_pos_df],dtype=np.bool)
+        idx1 = int(len_pos_df / cv_folds * (_cv))
+        idx2 = idx1+hold_out_len_pos
+        mask[idx1:idx2] = True
+        pos_test = pd.DataFrame(pos_df[mask],copy=True)
+        pos_train = pd.DataFrame(pos_df[~mask],copy=True)
 
-    else:
-        pos_train_data = pos_train.values
-        pos_test_data = pos_test.values
-        neg_test_data = neg_test.values
-        neg_train_data = neg_train.values
+        mask = np.zeros([len_neg_df],dtype=np.bool)
+        idx1 = int(len_neg_df / cv_folds * (_cv))
+        idx2 = idx1 + hold_out_len_neg
+        mask[idx1:idx2] = True
+        neg_test = pd.DataFrame(neg_df[mask],copy=True)
+        neg_train = pd.DataFrame(neg_df[~mask],copy=True)
 
-    pos_np_train = pos_train_data
-    pos_np_test  = pos_test_data
-    neg_np_train = neg_train_data
-    neg_np_test  = neg_test_data
+        print( len(pos_df), len(neg_df))
+        print(len(pos_test), len(pos_train))
+        print(len(neg_test), len(neg_train))
 
+        # if windowing is done
+        if window:
+            pos_train_data = seq15mer( pos_train, window, maxLen )
+            pos_test_data = seq15mer( pos_test, window, maxLen )
+            neg_train_data = seq15mer( neg_train, window, maxLen )
+            neg_test_data = seq15mer( neg_test, window, maxLen )
 
-    # --- Add in labels
+        else:
+            pos_train_data = pos_train.values
+            pos_test_data = pos_test.values
+            neg_test_data = neg_test.values
+            neg_train_data = neg_train.values
 
-    pos_ones_train  = np.ones((pos_np_train.shape[0], 1))
-    pos_train_labeled = np.append(pos_np_train, pos_ones_train, axis=1)
+        pos_np_train = pos_train_data
+        pos_np_test  = pos_test_data
+        neg_np_train = neg_train_data
+        neg_np_test  = neg_test_data
 
-    pos_ones_test = np.ones((pos_np_test.shape[0], 1))
-    pos_test_labeled = np.append(pos_np_test, pos_ones_test, axis=1)
+        # --- Add in labels --- #
+        pos_ones_train  = np.ones((pos_np_train.shape[0], 1))
+        pos_train_labeled = np.append(pos_np_train, pos_ones_train, axis=1)
 
-    neg_zeros_train = np.zeros((neg_np_train.shape[0], 1))
-    neg_train_labeled = np.append(neg_np_train, neg_zeros_train, axis=1)
+        pos_ones_test = np.ones((pos_np_test.shape[0], 1))
+        pos_test_labeled = np.append(pos_np_test, pos_ones_test, axis=1)
 
-    neg_zeros_test = np.zeros((neg_np_test.shape[0], 1))
-    neg_test_labeled = np.append(neg_np_test, neg_zeros_test, axis=1)
+        neg_zeros_train = np.zeros((neg_np_train.shape[0], 1))
+        neg_train_labeled = np.append(neg_np_train, neg_zeros_train, axis=1)
 
-    data_train = np.vstack([pos_train_labeled, neg_train_labeled])
-    data_test = np.vstack([pos_test_labeled, neg_test_labeled])
+        neg_zeros_test = np.zeros((neg_np_test.shape[0], 1))
+        neg_test_labeled = np.append(neg_np_test, neg_zeros_test, axis=1)
 
+        data_train = np.vstack([pos_train_labeled, neg_train_labeled])
+        data_test = np.vstack([pos_test_labeled, neg_test_labeled])
 
-    print(' >>> Train data shape :', data_train.shape)
-    print(' >>> Test data shape :', data_test.shape)
-    return (data_train, data_test)
+        print(' >>> Train data shape :', data_train.shape)
+        print(' >>> Test data shape :', data_test.shape)
+        data_train_list.append(data_train)
+        data_test_list.append(data_test)
+
+    return (data_train_list, data_test_list)
 
 
 def seq2atchley(s, window, maxLen):

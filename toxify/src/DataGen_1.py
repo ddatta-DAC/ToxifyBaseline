@@ -1,3 +1,7 @@
+'''
+Code to generate csv files from the 2 data sources in the Toxify codebase
+'''
+
 import pandas as pd
 import os
 from Bio import SeqIO
