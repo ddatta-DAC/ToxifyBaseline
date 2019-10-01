@@ -73,6 +73,10 @@ def source2pd(
         del df['sequence']
     except:
         pass
+    try:
+        del df['index']
+    except:
+        pass
 
     return df
 
@@ -126,7 +130,6 @@ def seqs2train(
     data_test_list = []
 
     for _cv in range(cv_folds):
-
         # For cross validation do not use train-test split
         mask = np.zeros([len_pos_df],dtype=np.bool)
         idx1 = int(len_pos_df / cv_folds * (_cv))
@@ -148,12 +151,14 @@ def seqs2train(
 
         # if windowing is done
         if window:
+            print('Case 1 window', window)
             pos_train_data = seq15mer( pos_train, window, maxLen )
             pos_test_data = seq15mer( pos_test, window, maxLen )
             neg_train_data = seq15mer( neg_train, window, maxLen )
             neg_test_data = seq15mer( neg_test, window, maxLen )
 
         else:
+            print('Case 2 window', window)
             pos_train_data = pos_train.values
             pos_test_data = pos_test.values
             neg_test_data = neg_test.values
@@ -179,6 +184,7 @@ def seqs2train(
 
         data_train = np.vstack([pos_train_labeled, neg_train_labeled])
         data_test = np.vstack([pos_test_labeled, neg_test_labeled])
+        np.random.shuffle(data_train)
 
         print(' >>> Train data shape :', data_train.shape)
         print(' >>> Test data shape :', data_test.shape)

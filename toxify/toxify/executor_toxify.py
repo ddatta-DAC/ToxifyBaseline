@@ -27,6 +27,10 @@ except:
 
 
 # ------------------------------------------------------------ #
+try: os.mkdir('models')
+except: pass
+try: os.mkdir(os.path.join('models','baseline'))
+except: pass
 
 class ToxifyModel:
     def __init__(self):
@@ -270,7 +274,7 @@ def get_data(
             test_seqs_pd.columns = ['header', 'kmer', 'sequence', 'label']
         else:
             test_seqs_pd.columns = ['header', 'sequence', 'label']
-
+        test_seqs_pd['label'] = test_seqs_pd['label'].astype(float)
         test_mat = []
         test_label_mat = []
 
@@ -340,13 +344,6 @@ def evaluate(
         df_test_seqs,
         arr_results
 ):
-    TP = 0
-    TN = 0
-    FP = 0
-    FN = 0
-    F1 = 0
-    MCC = 0
-
     df_test_seqs['predicted'] = 0.0
     # Create a copy
     new_df = pd.DataFrame(df_test_seqs, copy=True)
@@ -359,7 +356,7 @@ def evaluate(
     res_df = new_df.groupby(
         by=['header']
     ).agg(
-        {'label': 'max',
+        {'label': 'mean',
          'predicted_0': 'mean',
          'predicted_1': 'mean'}
     ).reset_index()
@@ -405,24 +402,16 @@ def main(maxLen=500, window=15, N_units=150):
     window = window
     N_units = N_units
     # Paper uses 50 epochs
-    epochs = 50
+    epochs = 1
     lr = 0.01
 
     hyperparams = [maxLen, window, N_units, epochs]
     str_hyperparams = [str(_) for _ in hyperparams]
     model_signature = 'toxify_' + '_'.join(str_hyperparams)
     model_dir = os.path.join('./models', 'baseline')
-    result_dir = os.path.join(
-        './../baseline_results', model_signature
-    )
-    result_file = 'results.csv'
 
-    if not os.path.exists('./../baseline_results'):
-        os.mkdir('./../baseline_results')
-    if not os.path.exists(result_dir):
-        os.mkdir(result_dir)
-
-    if not os.path.exists(model_dir): os.mkdir(model_dir)
+    if not os.path.exists(model_dir):
+        os.mkdir(model_dir)
 
     max_seq_len = maxLen
     window_size = window
@@ -450,7 +439,7 @@ def main(maxLen=500, window=15, N_units=150):
     arr_F1 = []
 
     for _cv in range(cv_folds):
-        print(' Cross Validation Fold ::', _cv)
+        print(' Cross Validation Fold ::', _cv+1)
         train_X = list_train_X[_cv]
         train_Y = list_train_Y[_cv]
         test_X = list_test_X[_cv]
@@ -472,6 +461,16 @@ def main(maxLen=500, window=15, N_units=150):
         arr_R.append(R)
         arr_F1.append(F1)
         print('------')
+
+    result_dir = os.path.join(
+        './../baseline_results', model_signature
+    )
+    result_file = 'results.csv'
+
+    if not os.path.exists('./../baseline_results'):
+        os.mkdir('./../baseline_results')
+    if not os.path.exists(result_dir):
+        os.mkdir(result_dir)
 
     result_file_path = os.path.join(result_dir, result_file)
     if os.path.exists(result_file_path):
@@ -500,10 +499,15 @@ def main(maxLen=500, window=15, N_units=150):
         _dict,
         ignore_index=True
     )
+
+
+
     results_df.to_csv(result_file_path, index=False)
     return
 
 
 main(maxLen=150, window=15, N_units=150)
-main(maxLen=500, window=0, N_units=270)
+main(maxLen=150, window=0, N_units=270)
+main(maxLen=500, window=50, N_units=270)
 main(maxLen=500, window=100, N_units=270)
+main(maxLen=500, window=200, N_units=270)
