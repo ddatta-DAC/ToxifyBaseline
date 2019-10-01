@@ -471,7 +471,7 @@ def main(maxLen = 500, window = 15):
         print('------')
 
     result_file_path = os.path.join(result_dir,result_file)
-    if os.path.exist(result_file_path):
+    if os.path.exists(result_file_path):
         results_df = pd.read_csv(result_file_path,index_col=None)
     else:
         results_df = pd.DataFrame(
