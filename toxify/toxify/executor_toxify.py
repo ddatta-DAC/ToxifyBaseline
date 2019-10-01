@@ -489,11 +489,11 @@ def main(maxLen=500, window=15, N_units=150):
 
     _dict = {
         'Precision_mean': np.mean(arr_P),
-        'Precision_stddev': np.stddev(),
+        'Precision_stddev': np.std(arr_P),
         'Recall_mean': np.mean(arr_R),
-        'Recall_stddev': np.stddev(arr_R),
+        'Recall_stddev': np.std(arr_R),
         'F1_mean': np.mean(arr_F1),
-        'F1_stddev': np.stddev(arr_F1)
+        'F1_stddev': np.std(arr_F1)
     }
 
     results_df = results_df.append(
