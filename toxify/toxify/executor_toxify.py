@@ -402,7 +402,7 @@ def main(maxLen = 500, window = 15):
     window = window
     N_units = 270
     # Paper uses 50 epochs
-    epochs = 1
+    epochs = 50
     lr = 0.01
 
     hyperparams = [maxLen, window, N_units, epochs]
@@ -501,3 +501,5 @@ def main(maxLen = 500, window = 15):
     return
 
 main( maxLen=150, window=15 )
+main( maxLen=500, window=0)
+main( maxLen=500, window=100)
