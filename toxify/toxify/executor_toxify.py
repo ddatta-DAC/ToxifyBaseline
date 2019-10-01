@@ -209,7 +209,8 @@ def train_and_test_model(
         test_X,
         test_Y,
         N_units,
-        model_dir
+        model_dir,
+        epochs
 ):
     output_dimension = train_Y.shape[1]  # Output dimension
     input_dimension = train_X.shape[2]  # Input dimension
@@ -225,7 +226,7 @@ def train_and_test_model(
         N_units=N_units,
         seq_len=seq_len,
         model_dir=model_dir,
-        epochs=1
+        epochs=epochs
     )
     model_obj.build()
     model_obj.train(
@@ -402,7 +403,7 @@ def main(maxLen=500, window=15, N_units=150):
     window = window
     N_units = N_units
     # Paper uses 50 epochs
-    epochs = 1
+    epochs = 50
     lr = 0.01
 
     hyperparams = [maxLen, window, N_units, epochs]
@@ -451,7 +452,8 @@ def main(maxLen=500, window=15, N_units=150):
             test_X,
             test_Y,
             N_units,
-            model_dir
+            model_dir,
+            epochs
         )
         P, R, F1 = evaluate(
             test_seqs_pd,
