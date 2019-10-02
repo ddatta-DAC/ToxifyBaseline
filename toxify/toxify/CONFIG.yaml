@@ -4,6 +4,6 @@
 'window': 15
 'maxLen' : 500
 'N_units' : 270
-'epochs': 1
-'LR': 0.1
+'epochs': 50
+'LR': 0.05
 
