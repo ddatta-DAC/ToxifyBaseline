@@ -149,15 +149,17 @@ class ToxifyModel:
                     }
                 )
                 epoch_loss.append(loss)
-                if _b % 1000 == 0:
-                    print('batch >', _b)
-                    print(' Loss: ', loss)
+                # if epoch % 5 and _b % 100 == 0:
+                #     print('batch >', _b, ' Loss: ', loss)
 
             self.summary_writer.add_summary(summary, epoch)
             t2 = time.time()
             print(' Time Elapsed ::', (t2 - t1) / 60, ' minutes')
             cur_epoch_loss = np.mean(epoch_loss)
+            print('Epoch loss : ', cur_epoch_loss)
+            # =====
             # Early breaking
+            # =====
             if abs( cur_epoch_loss - prev_epoch_loss)  <= 0.000001 :
                 print('Early stopping ..no loss reduction')
                 break
@@ -174,7 +176,7 @@ class ToxifyModel:
             outputs={"predictions": self.prediction}
         )
         self.sess.graph.finalize()
-        print('end of training model')
+        print('End of training model')
         return
 
     def predict(
@@ -263,14 +265,6 @@ def get_data(
         max_seq_len,
         cv_folds
     )
-
-    # training_data_dir = './../model_training_data'
-    # if not os.path.exists(training_data_dir):
-    #     os.mkdir(training_data_dir)
-    #
-    # training_data_loc = os.path.join(training_data_dir, model_signature)
-    # if not os.path.exists(training_data_loc):
-    #     os.makedirs(training_data_loc)
 
     list_train_X = []
     list_train_Y = []
@@ -440,8 +434,6 @@ def main( CONFIG):
     if not os.path.exists(model_dir):
         os.mkdir(model_dir)
 
-    print(' Model signature ::', model_signature)
-
 
     result_dir = os.path.join(
         DATA_LOC,'results', model_signature
@@ -451,6 +443,14 @@ def main( CONFIG):
 
     if not os.path.exists(os.path.join(DATA_LOC,'results', model_signature)):
         os.mkdir( os.path.join(DATA_LOC,'results', model_signature) )
+
+    print('-----------------------')
+    print(' Model signature ::', model_signature)
+    print('Data Dir : ', DATA_LOC)
+    print ('Results directory :: ', result_dir)
+
+    print('-----------------------')
+
 
 
     max_seq_len = maxLen
