@@ -1,0 +1,9 @@
+name: toxify_env
+channels:
+  - aaronzs
+  - bioconda
+dependencies:
+  - python=3.6.3
+  - numpy
+  - tensorflow=1.8.0
+  - pandas

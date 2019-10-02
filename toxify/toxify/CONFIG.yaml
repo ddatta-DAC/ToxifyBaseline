@@ -1,0 +1,9 @@
+'data_dir': './../../toxify/sequence_data/baseline_data'
+'pos_file': 'pre.venom.csv'
+'neg_file': 'pre.NOT.venom.csv'
+'window': 15
+'maxLen' : 500
+'N_units' : 270
+'epochs': 1
+'LR': 0.1
+
