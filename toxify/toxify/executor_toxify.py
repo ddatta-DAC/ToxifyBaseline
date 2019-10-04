@@ -176,7 +176,8 @@ class ToxifyModel:
             print('---->')
 
         if os.path.exists(self.save_dir):
-            os.remove(self.save_dir)
+            import shutil
+            shutil.rmtree(self.save_dir)
 
         tf.saved_model.simple_save(
             self.sess,
@@ -404,6 +405,7 @@ def evaluate(
          'predicted_1': 'mean'}
     ).reset_index()
 
+    res_df = new_df
     # Set predicted label
     def set_res(row):
         if row['predicted_1'] >= row['predicted_0']:
