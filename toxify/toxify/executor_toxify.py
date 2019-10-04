@@ -175,6 +175,8 @@ class ToxifyModel:
             prev_epoch_loss = cur_epoch_loss
             print('---->')
 
+        if os.path.exists(self.save_dir):
+            os.remove(self.save_dir)
 
         tf.saved_model.simple_save(
             self.sess,
@@ -268,17 +270,19 @@ def only_predict(model_dir,  test_X):
     print('Number of batches ', num_batches)
     print('Shape of text_X ', test_X.shape)
     res =[]
+    predict_fn = predictor.from_saved_model(model_dir)
     for _b in range(num_batches + 1):
         if _b == num_batches:
             _test_x = test_X[_b * batch_size:]
         else:
             _test_x = test_X[_b * batch_size: (_b + 1) * batch_size]
 
-        predict_fn = predictor.from_saved_model(model_dir)
         predictions = predict_fn(
             {"inputs": _test_x}
         )
-        res.append(predictions)
+        r = predictions['predictions']
+
+        res.append(r)
     res = np.vstack(res)
     return res
 
@@ -380,6 +384,7 @@ def evaluate(
         df_test_seqs,
         arr_results
 ):
+
     print(df_test_seqs.head(10))
     df_test_seqs['predicted'] = 0.0
     # Create a copy
@@ -414,6 +419,7 @@ def evaluate(
     res_df['label'] = res_df['label'].astype(float)
     res_df['predicted'] = res_df['predicted'].astype(float)
 
+    res_df.to_csv('all_output.csv', index=False)
     true_labels = list(res_df['label'])
     pred_labels = list(res_df['predicted'])
     print(set(true_labels))
@@ -517,9 +523,10 @@ def main( CONFIG):
     '''
 
     if int(CONFIG['only_predict']) == 1 :
-        model_dir_save = model_dir + '/saved_model' +  CONFIG['saved_model_subdir']
+        model_dir_save = model_dir + '/saved_model'
         results = only_predict(model_dir_save, test_X)
 
+        print(' >> ' , results.shape)
     else:
         results = train_and_test_model(
             train_X,

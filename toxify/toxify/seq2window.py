@@ -4,8 +4,6 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-window_size = 15
-max_seq_len = 100
 
 factorDict = {
     "A": [-0.59, -1.30, -0.73, 1.57, -0.15],
@@ -58,7 +56,8 @@ def source2pd(
 ):
     print(" source2pd ::", dataFile)
     df = pd.read_csv(dataFile,index_col=None)
-    df  = df.head(100)
+    df = df.head(200)
+
     def validate_seq(row, maxLen, window):
         z = len(row['sequences'])
         if window <= z <= maxLen:

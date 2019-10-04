@@ -8,5 +8,5 @@
 'N_units' : 150
 'epochs': 50
 'LR': 0.025
-'only_predict' :  1
+'only_predict' : 0
 'saved_model_subdir' : False
