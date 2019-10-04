@@ -63,8 +63,8 @@ def source2pd(
         z = len(row['sequences'])
         if window <= z <= maxLen:
             return row['sequences']
-        else:
-            return None
+        elif window <= z:
+            return row['sequences'][:maxLen]
 
     df['sequences'] = df.apply(validate_seq, axis=1, args=(maxLen, window,))
     df = df.dropna(subset=['sequences'])
@@ -77,7 +77,7 @@ def source2pd(
         del df['index']
     except:
         pass
-
+    print('$$$$ ', len(df))
     return df
 
 

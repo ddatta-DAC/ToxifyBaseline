@@ -163,12 +163,14 @@ class ToxifyModel:
             print(' Time Elapsed ::', (t2 - t1) / 60, ' minutes')
             cur_epoch_loss = np.mean(epoch_loss)
             print('Epoch loss : ', cur_epoch_loss)
+
             # =====
             # Early breaking
             # =====
-            if abs( cur_epoch_loss - prev_epoch_loss)  <= 0.000001 :
-                print('Early stopping ..no loss reduction')
-                break
+            # if abs( cur_epoch_loss - prev_epoch_loss)  <= 0.0000001 :
+            #     print('Early stopping ..no loss reduction')
+
+
             prev_epoch_loss = cur_epoch_loss
             print('---->')
         save_dir = self.model_dir + "/saved_model/" + str(time.time()).split('.')[0]
@@ -391,7 +393,6 @@ def evaluate(
 
     true_labels = list(res_df['label'])
     pred_labels = list(res_df['predicted'])
-
 
     P = precision_score(true_labels, pred_labels)
     R = recall_score(true_labels, pred_labels)

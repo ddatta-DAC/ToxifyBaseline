@@ -7,5 +7,5 @@
 'maxLen' : 500
 'N_units' : 270
 'epochs': 50
-'LR': 0.025
+'LR': 0.01
 
