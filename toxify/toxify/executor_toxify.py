@@ -10,6 +10,10 @@ import argparse
 from random import shuffle
 import random
 from sklearn.metrics import precision_score
+import argparse
+import yaml
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
 
 # ------------------------------------------------------------ #
 try:
@@ -127,6 +131,7 @@ class ToxifyModel:
         prev_epoch_loss = 0
 
         print('Number of batches ', num_batches)
+        summary = None
         for epoch in range(self.epochs):
             epoch_loss = []
             print('<----')
@@ -151,8 +156,9 @@ class ToxifyModel:
                 epoch_loss.append(loss)
                 # if epoch % 5 and _b % 100 == 0:
                 #     print('batch >', _b, ' Loss: ', loss)
+            if summary is not None:
+                self.summary_writer.add_summary(summary, epoch)
 
-            self.summary_writer.add_summary(summary, epoch)
             t2 = time.time()
             print(' Time Elapsed ::', (t2 - t1) / 60, ' minutes')
             cur_epoch_loss = np.mean(epoch_loss)
@@ -251,93 +257,92 @@ def train_and_test_model(
     return results
 
 
+
+
 def get_data(
-        pos_samples_fasta_file,
-        neg_samples_fasta_file,
+        pos_file_train,
+        neg_file_train,
+        pos_file_test,
+        neg_file_test,
         window_size,
-        max_seq_len,
-        cv_folds=5
+        max_seq_len
 ):
-    (train_seqs_list, test_seqs_list) = sw.seqs2train(
-        pos_samples_fasta_file,
-        neg_samples_fasta_file,
+
+    (train_seqs, test_seqs) = sw.seqs2train(
+        pos_file_train,
+        neg_file_train,
+        pos_file_test,
+        neg_file_test,
         window_size,
-        max_seq_len,
-        cv_folds
+        max_seq_len
     )
 
-    list_train_X = []
-    list_train_Y = []
-    list_test_X = []
-    list_test_Y = []
-    list_test_seqs_pd = []
+    test_seqs_pd = pd.DataFrame(test_seqs)
 
-    for train_seqs, test_seqs in zip(train_seqs_list, test_seqs_list):
+    if window_size:
+        test_seqs_pd.columns = ['header', 'kmer', 'sequence', 'label']
+    else:
+        test_seqs_pd.columns = ['header', 'sequence', 'label']
 
-        test_seqs_pd = pd.DataFrame(test_seqs)
+    test_seqs_pd['label'] = test_seqs_pd['label'].astype(float)
+    test_mat = []
+    test_label_mat = []
 
-        if window_size:
-            test_seqs_pd.columns = ['header', 'kmer', 'sequence', 'label']
+    '''
+    Label format
+        Toxin, non-Toxin
+    '''
+    for row in test_seqs:
+        seq = row[-2]
+        label = float(row[-1])
+
+        if label:
+            test_label_mat.append([1, 0])
         else:
-            test_seqs_pd.columns = ['header', 'sequence', 'label']
-        test_seqs_pd['label'] = test_seqs_pd['label'].astype(float)
-        test_mat = []
-        test_label_mat = []
-
-        '''
-        Label format
-            Toxin, non-Toxin
-        '''
-        for row in test_seqs:
-            seq = row[-2]
-            label = float(row[-1])
-
-            if label:
-                test_label_mat.append([1, 0])
-            else:
-                test_label_mat.append([0, 1])
-            test_mat.append(
-                sw.seq2atchley(
-                    seq,
-                    window_size,
-                    max_seq_len
-                )
-            )
-        test_label_np = np.array(test_label_mat)
-        test_np = np.array(test_mat)
-
-        train_mat = []
-        train_label_mat = []
-        for row in train_seqs:
-            seq = row[-2]
-            train_mat.append(sw.seq2atchley(
+            test_label_mat.append([0, 1])
+        test_mat.append(
+            sw.seq2atchley(
                 seq,
                 window_size,
                 max_seq_len
             )
-            )
-            label = float(row[-1])
+        )
+    test_label_np = np.array(test_label_mat)
+    test_np = np.array(test_mat)
 
-            if label:
-                train_label_mat.append([1, 0])
-            else:
-                train_label_mat.append([0, 1])
+    train_mat = []
+    train_label_mat = []
 
-        train_label_np = np.array(train_label_mat)
-        train_np = np.array(train_mat)
-        train_X = train_np
-        train_Y = train_label_np
-        test_X = test_np
-        test_Y = test_label_np
-        list_train_X.append(train_X)
-        list_train_Y.append(train_Y)
-        list_test_X.append(test_X)
-        list_test_Y.append(test_Y)
-        list_test_seqs_pd.append(test_seqs_pd)
-        print("train_X.shape:", train_X.shape)
-        print("train_Y.shape:", train_Y.shape)
+    for row in train_seqs:
+        seq = row[-2]
+        train_mat.append(sw.seq2atchley(
+            seq,
+            window_size,
+            max_seq_len
+        )
+        )
+        label = float(row[-1])
 
-    return list_train_X, list_train_Y, list_test_X, list_test_Y, list_test_seqs_pd
+        if label:
+            train_label_mat.append([1, 0])
+        else:
+            train_label_mat.append([0, 1])
+
+    train_label_np = np.array(train_label_mat)
+    train_np = np.array(train_mat)
+    train_X = train_np
+    train_Y = train_label_np
+    test_X = test_np
+    test_Y = test_label_np
+    # list_train_X.append(train_X)
+    # list_train_Y.append(train_Y)
+    # list_test_X.append(test_X)
+    # list_test_Y.append(test_Y)
+    # list_test_seqs_pd.append(test_seqs_pd)
+    print("train_X.shape:", train_X.shape)
+    print("train_Y.shape:", train_Y.shape)
+
+    return train_X, train_Y, test_X, test_Y, test_seqs_pd
 
 
 '''
@@ -350,9 +355,11 @@ def evaluate(
         df_test_seqs,
         arr_results
 ):
+    print(df_test_seqs.head(10))
     df_test_seqs['predicted'] = 0.0
     # Create a copy
     new_df = pd.DataFrame(df_test_seqs, copy=True)
+
     new_df['predicted_1'] = arr_results[:, 0]
     new_df['predicted_0'] = arr_results[:, 1]
 
@@ -384,8 +391,7 @@ def evaluate(
 
     true_labels = list(res_df['label'])
     pred_labels = list(res_df['predicted'])
-    from sklearn.metrics import recall_score
-    from sklearn.metrics import f1_score
+
 
     P = precision_score(true_labels, pred_labels)
     R = recall_score(true_labels, pred_labels)
@@ -406,16 +412,24 @@ def main( CONFIG):
     N_units=CONFIG['N_units']
     DATA_LOC = CONFIG['data_dir']
 
-    pos_samples_file = os.path.join(
+    pos_file_train = os.path.join(
         DATA_LOC,
-        CONFIG['pos_file'])
-    neg_samples_file = os.path.join(
+        CONFIG['pos_file_train']
+    )
+    neg_file_train = os.path.join(
         DATA_LOC,
-        CONFIG['neg_file'])
-
+        CONFIG['neg_file_train']
+    )
+    pos_file_test = os.path.join(
+        DATA_LOC,
+        CONFIG['pos_file_test']
+    )
+    neg_file_test = os.path.join(
+        DATA_LOC,
+        CONFIG['neg_file_test']
+    )
 
     # here we are given a list of positive fasta files and a list of negative fasta files
-
     # Paper uses 50 epochs
     if 'epochs' in CONFIG.keys():
         epochs = CONFIG['epochs']
@@ -456,15 +470,18 @@ def main( CONFIG):
     max_seq_len = maxLen
     window_size = window
 
-
-    cv_folds = 3
-    list_train_X, list_train_Y, list_test_X, list_test_Y, list_test_seqs_pd = get_data(
-        pos_samples_file,
-        neg_samples_file,
+    # -----
+    # For now no CV
+    # -----
+    train_X, train_Y, test_X, test_Y, test_seqs_pd = get_data(
+        pos_file_train,
+        neg_file_train,
+        pos_file_test,
+        neg_file_test,
         window_size,
-        max_seq_len,
-        cv_folds=cv_folds
+        max_seq_len
     )
+
 
     # Here we are given a list of positive fasta files and a list of negative fasta files
 
@@ -472,35 +489,20 @@ def main( CONFIG):
     ----------------- TF Model ---------------------
     '''
 
-    arr_P = []
-    arr_R = []
-    arr_F1 = []
-
-    for _cv in range(cv_folds):
-        print(' Cross Validation Fold ::', _cv+1)
-        train_X = list_train_X[_cv]
-        train_Y = list_train_Y[_cv]
-        test_X = list_test_X[_cv]
-        test_Y = list_test_Y[_cv]
-        test_seqs_pd = list_test_seqs_pd[_cv]
-        results = train_and_test_model(
-            train_X,
-            train_Y,
-            test_X,
-            test_Y,
-            N_units,
-            model_dir,
-            epochs,
-            lr
-        )
-        P, R, F1 = evaluate(
-            test_seqs_pd,
-            results
-        )
-        arr_P.append(P)
-        arr_R.append(R)
-        arr_F1.append(F1)
-        print('------')
+    results = train_and_test_model(
+        train_X,
+        train_Y,
+        test_X,
+        test_Y,
+        N_units,
+        model_dir,
+        epochs,
+        lr
+    )
+    P, R, F1 = evaluate(
+        test_seqs_pd,
+        results
+    )
 
 
     result_file = 'results.csv'
@@ -516,21 +518,15 @@ def main( CONFIG):
     else:
         results_df = pd.DataFrame(
             columns=[
-                'Precision_mean',
-                'Precision_stddev',
-                'Recall_mean',
-                'Recall_stddev',
-                'F1_mean',
-                'F1_stddev'
+                'Precision',
+                'Recall',
+                'F1',
             ])
 
     _dict = {
-        'Precision_mean': np.mean(arr_P),
-        'Precision_stddev': np.std(arr_P),
-        'Recall_mean': np.mean(arr_R),
-        'Recall_stddev': np.std(arr_R),
-        'F1_mean': np.mean(arr_F1),
-        'F1_stddev': np.std(arr_F1)
+        'Precision': P,
+        'Recall': R,
+        'F1': F1,
     }
 
     results_df = results_df.append(
@@ -550,7 +546,8 @@ def main( CONFIG):
 
 # -------------------- #
 
-import argparse
+
+
 parser = argparse.ArgumentParser(description='Running toxify ')
 parser.add_argument(
     '--config',
@@ -560,7 +557,7 @@ parser.add_argument(
     help='config file'
 )
 
-import yaml
+
 args = parser.parse_args()
 print(args.config)
 if args.config is not None:

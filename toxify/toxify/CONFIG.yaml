@@ -1,9 +1,11 @@
-'data_dir': './../../toxify/sequence_data/baseline_data'
-'pos_file': 'pre.venom.csv'
-'neg_file': 'pre.NOT.venom.csv'
+'data_dir': './../../toxify/sequence_data/mlcb_data'
+'pos_file_train': 'mlcb_1_pos_train.csv'
+'neg_file_train': 'mlcb_1_neg_train.csv'
+'pos_file_test': 'mlcb_1_pos_test.csv'
+'neg_file_test': 'mlcb_1_neg_test.csv'
 'window': 15
 'maxLen' : 500
 'N_units' : 270
 'epochs': 50
-'LR': 0.05
+'LR': 0.025
 
