@@ -56,14 +56,16 @@ def source2pd(
 ):
     print(" source2pd ::", dataFile)
     df = pd.read_csv(dataFile,index_col=None)
-    df = df.head(200)
+    # df = df.head(200)
 
     def validate_seq(row, maxLen, window):
         z = len(row['sequences'])
         if window <= z <= maxLen:
             return row['sequences']
-        elif window <= z:
-            return row['sequences'][:maxLen]
+        else:
+            return None
+        # elif window <= z:
+        #     return row['sequences'][:maxLen]
 
     df['sequences'] = df.apply(validate_seq, axis=1, args=(maxLen, window,))
     df = df.dropna(subset=['sequences'])

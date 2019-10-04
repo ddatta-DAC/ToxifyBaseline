@@ -6,7 +6,7 @@
 'window': 15
 'maxLen' : 500
 'N_units' : 150
-'epochs': 50
+'epochs': 5
 'LR': 0.025
 'only_predict' : 0
 'saved_model_subdir' : False
