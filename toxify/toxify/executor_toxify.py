@@ -14,7 +14,7 @@ import argparse
 import yaml
 from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
-
+from sklearn.metrics import classification_report
 # ------------------------------------------------------------ #
 try:
     from . import fifteenmer
@@ -60,6 +60,7 @@ class ToxifyModel:
         self.epochs = epochs
         self.batch_size = batch_size
         self.lr = lr
+        self.save_dir = self.model_dir + "/saved_model"
         return
 
     def build(self):
@@ -173,11 +174,11 @@ class ToxifyModel:
 
             prev_epoch_loss = cur_epoch_loss
             print('---->')
-        save_dir = self.model_dir + "/saved_model/" + str(time.time()).split('.')[0]
+
 
         tf.saved_model.simple_save(
             self.sess,
-            save_dir,
+            self.save_dir,
             inputs={
                 "inputs": self.inputs,
                 "target": self.target},
@@ -258,6 +259,28 @@ def train_and_test_model(
     model_obj.model_close()
     return results
 
+
+def only_predict(model_dir,  test_X):
+    from tensorflow.contrib import predictor
+    batch_size =1000
+    num_batches = test_X.shape[0] // batch_size
+
+    print('Number of batches ', num_batches)
+    print('Shape of text_X ', test_X.shape)
+    res =[]
+    for _b in range(num_batches + 1):
+        if _b == num_batches:
+            _test_x = test_X[_b * batch_size:]
+        else:
+            _test_x = test_X[_b * batch_size: (_b + 1) * batch_size]
+
+        predict_fn = predictor.from_saved_model(model_dir)
+        predictions = predict_fn(
+            {"inputs": _test_x}
+        )
+        res.append(predictions)
+    res = np.vstack(res)
+    return res
 
 
 
@@ -379,9 +402,9 @@ def evaluate(
     # Set predicted label
     def set_res(row):
         if row['predicted_1'] >= row['predicted_0']:
-            return 1
+            return 1.0
         else:
-            return 0
+            return 0.0
 
     res_df['predicted'] = res_df.apply(
         set_res,
@@ -393,7 +416,11 @@ def evaluate(
 
     true_labels = list(res_df['label'])
     pred_labels = list(res_df['predicted'])
+    print(set(true_labels))
+    print(set(pred_labels))
 
+    report = classification_report(true_labels, pred_labels)
+    print('REPORT :: ', report)
     P = precision_score(true_labels, pred_labels)
     R = recall_score(true_labels, pred_labels)
     F1 = f1_score(true_labels, pred_labels)
@@ -484,22 +511,27 @@ def main( CONFIG):
     )
 
 
-    # Here we are given a list of positive fasta files and a list of negative fasta files
 
     '''
     ----------------- TF Model ---------------------
     '''
 
-    results = train_and_test_model(
-        train_X,
-        train_Y,
-        test_X,
-        test_Y,
-        N_units,
-        model_dir,
-        epochs,
-        lr
-    )
+    if int(CONFIG['only_predict']) == 1 :
+        model_dir_save = model_dir + '/saved_model' +  CONFIG['saved_model_subdir']
+        results = only_predict(model_dir_save, test_X)
+
+    else:
+        results = train_and_test_model(
+            train_X,
+            train_Y,
+            test_X,
+            test_Y,
+            N_units,
+            model_dir,
+            epochs,
+            lr
+        )
+
     P, R, F1 = evaluate(
         test_seqs_pd,
         results

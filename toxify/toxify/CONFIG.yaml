@@ -5,7 +5,8 @@
 'neg_file_test': 'mlcb_1_neg_test.csv'
 'window': 15
 'maxLen' : 500
-'N_units' : 270
+'N_units' : 150
 'epochs': 50
-'LR': 0.01
-
+'LR': 0.025
+'only_predict' :  1
+'saved_model_subdir' : False

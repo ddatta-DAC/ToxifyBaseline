@@ -58,7 +58,7 @@ def source2pd(
 ):
     print(" source2pd ::", dataFile)
     df = pd.read_csv(dataFile,index_col=None)
-
+    df  = df.head(100)
     def validate_seq(row, maxLen, window):
         z = len(row['sequences'])
         if window <= z <= maxLen:
