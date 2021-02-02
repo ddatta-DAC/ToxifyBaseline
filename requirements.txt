@@ -2,7 +2,7 @@ absl-py==0.8.0
 astor==0.8.0
 bio==0.1.0
 biopython==1.74
-bleach==3.1.4
+bleach==3.3.0
 certifi==2019.9.11
 gast==0.3.2
 grpcio==1.14.1
