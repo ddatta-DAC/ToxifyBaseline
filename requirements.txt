@@ -6,7 +6,7 @@ bleach==3.1.4
 certifi==2019.9.11
 gast==0.3.2
 grpcio==1.14.1
-html5lib==0.9999999
+html5lib==0.99999999
 joblib==0.13.2
 Markdown==3.1.1
 numpy==1.17.2
