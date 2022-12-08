@@ -1,7 +1,7 @@
 absl-py==0.8.0
 astor==0.8.0
 bleach==3.1.4
-certifi==2019.9.11
+certifi==2022.12.7
 gast==0.3.2
 grpcio==1.14.1
 html5lib==0.9999999
